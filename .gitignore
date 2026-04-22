@@ -1,2 +1,4 @@
 /ClassDocu
-/__pycache
+/__pycache__
+/.venv
+/book.db
