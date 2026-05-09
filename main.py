@@ -13,6 +13,24 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+def init_db():
+    """首次运行时根据 schema.sql 自动建表并初始化数据"""
+    schema_path = os.path.join(BASE_DIR, 'sql', 'schema.sql')
+    if os.path.exists(schema_path):
+        conn = sqlite3.connect(DB_PATH)
+        with open(schema_path, 'r', encoding='utf-8') as f:
+            conn.executescript(f.read())
+        conn.commit()
+        conn.close()
+        print("数据库初始化完成：已创建表并插入默认数据")
+    else:
+        print(f"警告：未找到建表脚本 {schema_path}，请确保 sql/schema.sql 文件存在")
+
+# 应用启动前检查并初始化数据库
+if not os.path.exists(DB_PATH):
+    print("首次运行，正在初始化数据库...")
+    init_db()
+
 # 首页
 @app.route('/')
 def index():
