@@ -1,6 +1,8 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 import sqlite3
 import os
+import csv
+import io
 
 app = Flask(__name__, template_folder=os.path.join('src', 'templates'))
 
@@ -128,6 +130,59 @@ def stats():
         "total": total,
         "by_category": [dict(row) for row in by_category]
     })
+
+# 导出CSV
+@app.route('/export/csv')
+def export_csv():
+    search = request.args.get('search', '')
+    conn = get_db()
+    
+    if search:
+        books = conn.execute(
+            "SELECT book.id, book.title, book.author, book.isbn, category.name as category_name, "
+            "book.location, book.status FROM book "
+            "LEFT JOIN category ON book.category_id = category.id "
+            "WHERE book.title LIKE ? OR book.author LIKE ?",
+            (f'%{search}%', f'%{search}%')
+        ).fetchall()
+    else:
+        books = conn.execute(
+            "SELECT book.id, book.title, book.author, book.isbn, category.name as category_name, "
+            "book.location, book.status FROM book "
+            "LEFT JOIN category ON book.category_id = category.id"
+        ).fetchall()
+    conn.close()
+
+    # 生成CSV内容
+    output = io.StringIO()
+    writer = csv.writer(output)
+    # 写入BOM解决Excel中文乱码
+    output.write('\ufeff')
+    # 写入表头
+    writer.writerow(['ID', '书名', '作者', 'ISBN', '分类', '位置', '状态'])
+    # 写入数据
+    for book in books:
+        writer.writerow([
+            book['id'],
+            book['title'],
+            book['author'],
+            book['isbn'] or '',
+            book['category_name'] or '无',
+            book['location'] or '',
+            book['status']
+        ])
+    
+    csv_content = output.getvalue()
+    output.close()
+    
+    return Response(
+        csv_content,
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': 'attachment; filename=books_export.csv',
+            'Content-Type': 'text/csv; charset=utf-8'
+        }
+    )
 
 if __name__ == '__main__':
     app.run(debug=True, port=8000)
