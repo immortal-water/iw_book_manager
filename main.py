@@ -37,25 +37,36 @@ if not os.path.exists(DB_PATH):
 @app.route('/')
 def index():
     search = request.args.get('search', '')
+    status_filter = request.args.get('status', '')
     conn = get_db()
-    
+
+    # 构建动态查询条件
+    conditions = []
+    params = []
+
     if search:
-        books = conn.execute(
-            "SELECT book.*, category.name as category_name FROM book "
-            "LEFT JOIN category ON book.category_id = category.id "
-            "WHERE book.title LIKE ? OR book.author LIKE ?",
-            (f'%{search}%', f'%{search}%')
-        ).fetchall()
-    else:
-        books = conn.execute(
-            "SELECT book.*, category.name as category_name FROM book "
-            "LEFT JOIN category ON book.category_id = category.id"
-        ).fetchall()
-    
+        conditions.append("(book.title LIKE ? OR book.author LIKE ?)")
+        params.extend([f'%{search}%', f'%{search}%'])
+
+    if status_filter:
+        conditions.append("book.status = ?")
+        params.append(status_filter)
+
+    where_clause = ""
+    if conditions:
+        where_clause = "WHERE " + " AND ".join(conditions)
+
+    books = conn.execute(
+        f"SELECT book.*, category.name as category_name FROM book "
+        f"LEFT JOIN category ON book.category_id = category.id "
+        f"{where_clause}",
+        params
+    ).fetchall()
+
     categories = conn.execute("SELECT * FROM category").fetchall()
     conn.close()
-    
-    return render_template('index.html', books=books, categories=categories, search=search)
+
+    return render_template('index.html', books=books, categories=categories, search=search, status_filter=status_filter)
 
 # 添加图书
 @app.route('/book/add', methods=['POST'])
@@ -66,7 +77,7 @@ def add_book():
     category_id = request.form.get('category_id')
     location = request.form.get('location', '')
     status = request.form.get('status', '未读')
-    
+
     conn = get_db()
     conn.execute(
         "INSERT INTO book (title, author, isbn, category_id, location, status) "
@@ -75,7 +86,7 @@ def add_book():
     )
     conn.commit()
     conn.close()
-    
+
     return jsonify({"success": True})
 
 # 删除单本图书
@@ -94,7 +105,7 @@ def batch_delete_books():
     ids = data.get('ids', [])
     if not ids:
         return jsonify({"success": False, "message": "未选择任何图书"})
-    
+
     conn = get_db()
     placeholders = ','.join('?' for _ in ids)
     conn.execute(f"DELETE FROM book WHERE id IN ({placeholders})", ids)
@@ -119,7 +130,7 @@ def update_book(book_id):
     category_id = request.form.get('category_id')
     location = request.form.get('location', '')
     status = request.form.get('status', '未读')
-    
+
     conn = get_db()
     conn.execute(
         "UPDATE book SET title=?, author=?, isbn=?, category_id=?, location=?, status=? "
@@ -150,22 +161,32 @@ def stats():
 @app.route('/export/csv')
 def export_csv():
     search = request.args.get('search', '')
+    status_filter = request.args.get('status', '')
     conn = get_db()
-    
+
+    # 构建与首页一致的查询条件
+    conditions = []
+    params = []
+
     if search:
-        books = conn.execute(
-            "SELECT book.id, book.title, book.author, book.isbn, category.name as category_name, "
-            "book.location, book.status FROM book "
-            "LEFT JOIN category ON book.category_id = category.id "
-            "WHERE book.title LIKE ? OR book.author LIKE ?",
-            (f'%{search}%', f'%{search}%')
-        ).fetchall()
-    else:
-        books = conn.execute(
-            "SELECT book.id, book.title, book.author, book.isbn, category.name as category_name, "
-            "book.location, book.status FROM book "
-            "LEFT JOIN category ON book.category_id = category.id"
-        ).fetchall()
+        conditions.append("(book.title LIKE ? OR book.author LIKE ?)")
+        params.extend([f'%{search}%', f'%{search}%'])
+
+    if status_filter:
+        conditions.append("book.status = ?")
+        params.append(status_filter)
+
+    where_clause = ""
+    if conditions:
+        where_clause = "WHERE " + " AND ".join(conditions)
+
+    books = conn.execute(
+        f"SELECT book.id, book.title, book.author, book.isbn, category.name as category_name, "
+        f"book.location, book.status FROM book "
+        f"LEFT JOIN category ON book.category_id = category.id "
+        f"{where_clause}",
+        params
+    ).fetchall()
     conn.close()
 
     # 生成CSV内容
@@ -186,10 +207,10 @@ def export_csv():
             book['location'] or '',
             book['status']
         ])
-    
+
     csv_content = output.getvalue()
     output.close()
-    
+
     return Response(
         csv_content,
         mimetype='text/csv',
