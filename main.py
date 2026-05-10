@@ -78,7 +78,7 @@ def add_book():
     
     return jsonify({"success": True})
 
-# 删除图书
+# 删除单本图书
 @app.route('/book/delete/<int:book_id>')
 def delete_book(book_id):
     conn = get_db()
@@ -86,6 +86,21 @@ def delete_book(book_id):
     conn.commit()
     conn.close()
     return jsonify({"success": True})
+
+# 批量删除图书
+@app.route('/book/batch_delete', methods=['POST'])
+def batch_delete_books():
+    data = request.get_json()
+    ids = data.get('ids', [])
+    if not ids:
+        return jsonify({"success": False, "message": "未选择任何图书"})
+    
+    conn = get_db()
+    placeholders = ','.join('?' for _ in ids)
+    conn.execute(f"DELETE FROM book WHERE id IN ({placeholders})", ids)
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "deleted": len(ids)})
 
 # 获取单本图书
 @app.route('/book/get/<int:book_id>')

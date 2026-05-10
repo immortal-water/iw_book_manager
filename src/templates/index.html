@@ -14,11 +14,13 @@
         .add-btn { background: #4CAF50; color: white; border: none; padding: 10px 20px; margin-bottom: 20px; }
         .search-box { padding: 8px; width: 300px; margin-right: 10px; }
         .export-btn { background: #2196F3; color: white; border: none; padding: 8px 16px; margin-left: 10px; cursor: pointer; }
+        .batch-delete-btn { background: #f44336; color: white; border: none; padding: 8px 16px; margin-left: 10px; cursor: pointer; display: none; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
         .modal-content { background: white; margin: 100px auto; padding: 20px; width: 500px; border-radius: 8px; }
         input, select { width: 100%; padding: 8px; margin: 5px 0 15px 0; }
         .stats { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
         .stat-card { background: #e0e0e0; padding: 15px; border-radius: 8px; }
+        .select-all-cell { width: 40px; text-align: center; }
     </style>
 </head>
 <body>
@@ -34,14 +36,19 @@
         <button type="submit">搜索</button>
     </form>
     <button class="export-btn" onclick="exportCSV()">📥 导出 CSV</button>
+    <button class="batch-delete-btn" id="batchDeleteBtn" onclick="batchDelete()">🗑 批量删除</button>
     
     <table>
         <thead>
-            <tr><th>ID</th><th>书名</th><th>作者</th><th>分类</th><th>位置</th><th>状态</th><th>操作</th></tr>
+            <tr>
+                <th class="select-all-cell"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                <th>ID</th><th>书名</th><th>作者</th><th>分类</th><th>位置</th><th>状态</th><th>操作</th>
+            </tr>
         </thead>
         <tbody>
             {% for book in books %}
             <tr>
+                <td class="select-all-cell"><input type="checkbox" class="book-checkbox" value="{{ book.id }}" onchange="updateBatchDeleteBtn()"></td>
                 <td>{{ book.id }}</td>
                 <td>{{ book.title }}</td>
                 <td>{{ book.author }}</td>
@@ -139,15 +146,55 @@
     function closeModal() { document.getElementById('modal').style.display = 'none'; }
     
     function exportCSV() {
-        // 获取当前搜索词
         const searchInput = document.querySelector('input[name="search"]');
         const search = searchInput ? searchInput.value : '';
-        // 构建导出URL，携带搜索参数
         let url = '/export/csv';
         if (search) {
             url += '?search=' + encodeURIComponent(search);
         }
         window.location.href = url;
+    }
+    
+    // 全选/取消全选
+    function toggleSelectAll() {
+        const selectAll = document.getElementById('selectAll');
+        const checkboxes = document.querySelectorAll('.book-checkbox');
+        checkboxes.forEach(cb => cb.checked = selectAll.checked);
+        updateBatchDeleteBtn();
+    }
+    
+    // 更新批量删除按钮显示状态
+    function updateBatchDeleteBtn() {
+        const checkedCount = document.querySelectorAll('.book-checkbox:checked').length;
+        const batchBtn = document.getElementById('batchDeleteBtn');
+        if (checkedCount > 0) {
+            batchBtn.style.display = 'inline-block';
+            batchBtn.innerText = '🗑 批量删除(' + checkedCount + ')';
+        } else {
+            batchBtn.style.display = 'none';
+        }
+    }
+    
+    // 批量删除
+    async function batchDelete() {
+        const checkedBoxes = document.querySelectorAll('.book-checkbox:checked');
+        const ids = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+        
+        if (ids.length === 0) return;
+        
+        if (!confirm('确定要删除选中的 ' + ids.length + ' 本图书吗？此操作不可恢复。')) return;
+        
+        const res = await fetch('/book/batch_delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: ids })
+        });
+        const data = await res.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('删除失败：' + (data.message || '未知错误'));
+        }
     }
     
     loadStats();
