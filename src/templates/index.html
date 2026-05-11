@@ -39,13 +39,19 @@
         .status-reading { background: #fff3e0; color: #e65100; }
         .status-done { background: #e8f5e9; color: #2e7d32; }
 
-        /* 分页样式 */
         .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 20px; }
         .page-btn { padding: 6px 12px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 4px; text-decoration: none; color: #333; }
         .page-btn:hover { background: #e0e0e0; }
         .page-btn.active { background: #4CAF50; color: white; border-color: #4CAF50; }
         .page-btn:disabled { color: #ccc; cursor: not-allowed; }
         .page-info { padding: 6px 12px; color: #666; }
+
+        /* 标签样式 */
+        .tag { display: inline-block; padding: 2px 8px; margin: 1px 2px; border-radius: 10px; font-size: 11px; background: #e3f2fd; color: #1565c0; }
+        .tag-filter { display: inline-block; padding: 2px 8px; margin: 1px 2px; border-radius: 10px; font-size: 11px; background: #e0e0e0; color: #333; cursor: pointer; text-decoration: none; }
+        .tag-filter:hover { background: #bdbdbd; }
+        .tag-filter.active { background: #1565c0; color: white; }
+        .tag-hint { font-size: 11px; color: #999; margin-top: 2px; }
     </style>
 </head>
 <body>
@@ -72,6 +78,7 @@
                 <option value="在读" {% if status_filter == '在读' %}selected{% endif %}>在读</option>
                 <option value="已读" {% if status_filter == '已读' %}selected{% endif %}>已读</option>
             </select>
+            <input type="hidden" name="tag" value="{{ tag_filter }}">
             <button type="submit">搜索</button>
         </form>
 
@@ -79,11 +86,22 @@
         <button class="batch-delete-btn" id="batchDeleteBtn" onclick="batchDelete()">🗑 批量删除</button>
     </div>
 
+    <!-- 标签筛选栏 -->
+    {% if all_tags %}
+    <div style="margin-bottom: 15px;">
+        <span style="font-weight: bold;">🏷️ 标签筛选：</span>
+        <a class="tag-filter {% if not tag_filter %}active{% endif %}" href="?search={{ search }}&status={{ status_filter }}">全部</a>
+        {% for tag in all_tags %}
+        <a class="tag-filter {% if tag_filter == tag.id|string %}active{% endif %}" href="?search={{ search }}&status={{ status_filter }}&tag={{ tag.id }}">{{ tag.name }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <table>
         <thead>
             <tr>
                 <th class="select-all-cell"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
-                <th>ID</th><th>书名</th><th>作者</th><th>分类</th><th>位置</th><th>状态</th><th>进度</th><th>操作</th>
+                <th>ID</th><th>书名</th><th>作者</th><th>分类</th><th>标签</th><th>位置</th><th>状态</th><th>进度</th><th>操作</th>
             </tr>
         </thead>
         <tbody>
@@ -94,6 +112,15 @@
                 <td>{{ book.title }}</td>
                 <td>{{ book.author }}</td>
                 <td>{{ book.category_name or '无' }}</td>
+                <td>
+                    {% if book.tags %}
+                    {% for tag in book.tags %}
+                    <a class="tag" href="?tag={{ tag.id }}&search={{ search }}&status={{ status_filter }}">{{ tag.name }}</a>
+                    {% endfor %}
+                    {% else %}
+                    <span style="color: #ccc;">-</span>
+                    {% endif %}
+                </td>
                 <td>{{ book.location or '-' }}</td>
                 <td>
                     {% if book.status == '未读' %}
@@ -123,16 +150,15 @@
             </tr>
             {% endfor %}
             {% if not books %}
-            <tr><td colspan="8" style="text-align: center; color: #999;">暂无图书数据</td></tr>
+            <tr><td colspan="9" style="text-align: center; color: #999;">暂无图书数据</td></tr>
             {% endif %}
         </tbody>
     </table>
 
-    <!-- 分页导航 -->
     <div class="pagination">
         {% if page > 1 %}
-        <a class="page-btn" href="?page=1&search={{ search }}&status={{ status_filter }}">首页</a>
-        <a class="page-btn" href="?page={{ page - 1 }}&search={{ search }}&status={{ status_filter }}">上一页</a>
+        <a class="page-btn" href="?page=1&search={{ search }}&status={{ status_filter }}&tag={{ tag_filter }}">首页</a>
+        <a class="page-btn" href="?page={{ page - 1 }}&search={{ search }}&status={{ status_filter }}&tag={{ tag_filter }}">上一页</a>
         {% else %}
         <span class="page-btn" disabled>首页</span>
         <span class="page-btn" disabled>上一页</span>
@@ -142,15 +168,15 @@
             {% if p == page %}
             <span class="page-btn active">{{ p }}</span>
             {% elif p <= 3 or p > total_pages - 3 or (p >= page - 1 and p <= page + 1) %}
-            <a class="page-btn" href="?page={{ p }}&search={{ search }}&status={{ status_filter }}">{{ p }}</a>
+            <a class="page-btn" href="?page={{ p }}&search={{ search }}&status={{ status_filter }}&tag={{ tag_filter }}">{{ p }}</a>
             {% elif p == 4 or p == total_pages - 3 %}
             <span class="page-info">...</span>
             {% endif %}
         {% endfor %}
 
         {% if page < total_pages %}
-        <a class="page-btn" href="?page={{ page + 1 }}&search={{ search }}&status={{ status_filter }}">下一页</a>
-        <a class="page-btn" href="?page={{ total_pages }}&search={{ search }}&status={{ status_filter }}">末页</a>
+        <a class="page-btn" href="?page={{ page + 1 }}&search={{ search }}&status={{ status_filter }}&tag={{ tag_filter }}">下一页</a>
+        <a class="page-btn" href="?page={{ total_pages }}&search={{ search }}&status={{ status_filter }}&tag={{ tag_filter }}">末页</a>
         {% else %}
         <span class="page-btn" disabled>下一页</span>
         <span class="page-btn" disabled>末页</span>
@@ -177,6 +203,8 @@
             <label>位置</label><input type="text" id="location">
             <label>状态</label>
             <select id="status"><option>未读</option><option>在读</option><option>已读</option></select>
+            <label>标签</label><input type="text" id="tagsInput" placeholder="多个标签用逗号分隔，如：经典,进阶">
+            <div class="tag-hint">📌 输入标签名后保存，新标签会自动创建</div>
             <button type="submit">保存</button>
             <button type="button" onclick="closeModal()">取消</button>
         </form>
@@ -218,6 +246,7 @@
         document.getElementById('modalTitle').innerText = '添加图书';
         document.getElementById('bookForm').reset();
         document.getElementById('bookId').value = '';
+        document.getElementById('tagsInput').value = '';
         document.getElementById('modal').style.display = 'block';
     }
 
@@ -232,6 +261,12 @@
         document.getElementById('categoryId').value = book.category_id;
         document.getElementById('location').value = book.location || '';
         document.getElementById('status').value = book.status;
+        // 将标签数组转为逗号分隔字符串
+        if (book.tags && book.tags.length > 0) {
+            document.getElementById('tagsInput').value = book.tags.map(t => t.name).join(', ');
+        } else {
+            document.getElementById('tagsInput').value = '';
+        }
         document.getElementById('modal').style.display = 'block';
     }
 
@@ -245,6 +280,7 @@
         formData.append('category_id', document.getElementById('categoryId').value);
         formData.append('location', document.getElementById('location').value);
         formData.append('status', document.getElementById('status').value);
+        formData.append('tags', document.getElementById('tagsInput').value);
 
         const url = id ? `/book/update/${id}` : '/book/add';
         await fetch(url, { method: 'POST', body: formData });
