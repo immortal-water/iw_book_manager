@@ -63,10 +63,33 @@ def index():
         params
     ).fetchall()
 
+    # 计算每本图书的阅读进度百分比
+    total_books = len(books)
+    books_with_progress = []
+    for i, book in enumerate(books):
+        book_dict = dict(book)
+        # 根据状态计算进度：未读=0%，在读=50%，已读=100%
+        if book['status'] == '已读':
+            progress = 100
+        elif book['status'] == '在读':
+            progress = 50
+        else:
+            progress = 0
+        book_dict['progress'] = progress
+        books_with_progress.append(book_dict)
+
+    # 计算总体阅读进度
+    if total_books > 0:
+        overall_progress = sum(b['progress'] for b in books_with_progress) // total_books
+    else:
+        overall_progress = 0
+
     categories = conn.execute("SELECT * FROM category").fetchall()
     conn.close()
 
-    return render_template('index.html', books=books, categories=categories, search=search, status_filter=status_filter)
+    return render_template('index.html', books=books_with_progress, categories=categories,
+                           search=search, status_filter=status_filter,
+                           total_books=total_books, overall_progress=overall_progress)
 
 # 添加图书
 @app.route('/book/add', methods=['POST'])
@@ -151,10 +174,26 @@ def stats():
         "LEFT JOIN book ON category.id = book.category_id "
         "GROUP BY category.id"
     ).fetchall()
+
+    # 计算各状态数量
+    by_status = conn.execute(
+        "SELECT status, COUNT(*) as count FROM book GROUP BY status"
+    ).fetchall()
+
+    # 计算总体阅读进度
+    if total > 0:
+        status_progress = {'未读': 0, '在读': 50, '已读': 100}
+        total_progress = sum(status_progress.get(row['status'], 0) * row['count'] for row in by_status)
+        overall_progress = total_progress // total
+    else:
+        overall_progress = 0
+
     conn.close()
     return jsonify({
         "total": total,
-        "by_category": [dict(row) for row in by_category]
+        "by_category": [dict(row) for row in by_category],
+        "by_status": [dict(row) for row in by_status],
+        "overall_progress": overall_progress
     })
 
 # 导出CSV
