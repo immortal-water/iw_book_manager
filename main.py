@@ -3,12 +3,14 @@ import sqlite3
 import os
 import csv
 import io
+import math
 
 app = Flask(__name__, template_folder=os.path.join('src', 'templates'))
 
 # 数据库路径
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "book.db")
+PER_PAGE = 5  # 每页显示数量
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -38,6 +40,10 @@ if not os.path.exists(DB_PATH):
 def index():
     search = request.args.get('search', '')
     status_filter = request.args.get('status', '')
+    page = request.args.get('page', 1, type=int)
+    if page < 1:
+        page = 1
+
     conn = get_db()
 
     # 构建动态查询条件
@@ -56,19 +62,31 @@ def index():
     if conditions:
         where_clause = "WHERE " + " AND ".join(conditions)
 
+    # 查询总记录数
+    count_sql = f"SELECT COUNT(*) as total FROM book LEFT JOIN category ON book.category_id = category.id {where_clause}"
+    total_count = conn.execute(count_sql, params).fetchone()['total']
+    total_pages = max(1, math.ceil(total_count / PER_PAGE))
+
+    # 修正页码
+    if page > total_pages:
+        page = total_pages
+
+    offset = (page - 1) * PER_PAGE
+
+    # 分页查询
     books = conn.execute(
         f"SELECT book.*, category.name as category_name FROM book "
         f"LEFT JOIN category ON book.category_id = category.id "
-        f"{where_clause}",
-        params
+        f"{where_clause} "
+        f"ORDER BY book.id DESC "
+        f"LIMIT ? OFFSET ?",
+        params + [PER_PAGE, offset]
     ).fetchall()
 
     # 计算每本图书的阅读进度百分比
-    total_books = len(books)
     books_with_progress = []
-    for i, book in enumerate(books):
+    for book in books:
         book_dict = dict(book)
-        # 根据状态计算进度：未读=0%，在读=50%，已读=100%
         if book['status'] == '已读':
             progress = 100
         elif book['status'] == '在读':
@@ -78,18 +96,27 @@ def index():
         book_dict['progress'] = progress
         books_with_progress.append(book_dict)
 
-    # 计算总体阅读进度
-    if total_books > 0:
-        overall_progress = sum(b['progress'] for b in books_with_progress) // total_books
+    # 计算总体阅读进度（基于全部数据）
+    total_books_all = conn.execute("SELECT COUNT(*) as count FROM book").fetchone()['count']
+    if total_books_all > 0:
+        status_progress = {'未读': 0, '在读': 50, '已读': 100}
+        by_status_all = conn.execute("SELECT status, COUNT(*) as count FROM book GROUP BY status").fetchall()
+        overall_progress = sum(status_progress.get(row['status'], 0) * row['count'] for row in by_status_all) // total_books_all
     else:
         overall_progress = 0
 
     categories = conn.execute("SELECT * FROM category").fetchall()
     conn.close()
 
-    return render_template('index.html', books=books_with_progress, categories=categories,
-                           search=search, status_filter=status_filter,
-                           total_books=total_books, overall_progress=overall_progress)
+    return render_template('index.html',
+                           books=books_with_progress,
+                           categories=categories,
+                           search=search,
+                           status_filter=status_filter,
+                           overall_progress=overall_progress,
+                           page=page,
+                           total_pages=total_pages,
+                           total_count=total_count)
 
 # 添加图书
 @app.route('/book/add', methods=['POST'])
@@ -175,12 +202,10 @@ def stats():
         "GROUP BY category.id"
     ).fetchall()
 
-    # 计算各状态数量
     by_status = conn.execute(
         "SELECT status, COUNT(*) as count FROM book GROUP BY status"
     ).fetchall()
 
-    # 计算总体阅读进度
     if total > 0:
         status_progress = {'未读': 0, '在读': 50, '已读': 100}
         total_progress = sum(status_progress.get(row['status'], 0) * row['count'] for row in by_status)
@@ -203,7 +228,6 @@ def export_csv():
     status_filter = request.args.get('status', '')
     conn = get_db()
 
-    # 构建与首页一致的查询条件
     conditions = []
     params = []
 
@@ -223,19 +247,16 @@ def export_csv():
         f"SELECT book.id, book.title, book.author, book.isbn, category.name as category_name, "
         f"book.location, book.status FROM book "
         f"LEFT JOIN category ON book.category_id = category.id "
-        f"{where_clause}",
+        f"{where_clause} "
+        f"ORDER BY book.id DESC",
         params
     ).fetchall()
     conn.close()
 
-    # 生成CSV内容
     output = io.StringIO()
     writer = csv.writer(output)
-    # 写入BOM解决Excel中文乱码
     output.write('\ufeff')
-    # 写入表头
     writer.writerow(['ID', '书名', '作者', 'ISBN', '分类', '位置', '状态'])
-    # 写入数据
     for book in books:
         writer.writerow([
             book['id'],

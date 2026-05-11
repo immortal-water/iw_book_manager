@@ -24,7 +24,6 @@
         .select-all-cell { width: 40px; text-align: center; }
         .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
 
-        /* 进度条样式 */
         .progress-container { margin-bottom: 15px; }
         .progress-label { font-weight: bold; margin-bottom: 5px; }
         .progress-bar-outer { width: 100%; background: #e0e0e0; border-radius: 10px; height: 20px; overflow: hidden; }
@@ -39,6 +38,14 @@
         .status-unread { background: #ffebee; color: #c62828; }
         .status-reading { background: #fff3e0; color: #e65100; }
         .status-done { background: #e8f5e9; color: #2e7d32; }
+
+        /* 分页样式 */
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 20px; }
+        .page-btn { padding: 6px 12px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 4px; text-decoration: none; color: #333; }
+        .page-btn:hover { background: #e0e0e0; }
+        .page-btn.active { background: #4CAF50; color: white; border-color: #4CAF50; }
+        .page-btn:disabled { color: #ccc; cursor: not-allowed; }
+        .page-info { padding: 6px 12px; color: #666; }
     </style>
 </head>
 <body>
@@ -47,7 +54,6 @@
 
     <div class="stats" id="stats"></div>
 
-    <!-- 总体阅读进度条 -->
     <div class="progress-container">
         <div class="progress-label">📊 总体阅读进度</div>
         <div class="progress-bar-outer">
@@ -58,9 +64,9 @@
     <div class="toolbar">
         <button class="add-btn" onclick="openAddModal()">+ 添加图书</button>
 
-        <form method="get" style="display: inline-flex; align-items: center; gap: 10px;">
+        <form method="get" id="searchForm" style="display: inline-flex; align-items: center; gap: 10px;">
             <input type="text" name="search" class="search-box" placeholder="按书名或作者搜索" value="{{ search }}">
-            <select name="status" class="filter-select" onchange="this.form.submit()">
+            <select name="status" class="filter-select" onchange="document.getElementById('searchForm').submit()">
                 <option value="">全部状态</option>
                 <option value="未读" {% if status_filter == '未读' %}selected{% endif %}>未读</option>
                 <option value="在读" {% if status_filter == '在读' %}selected{% endif %}>在读</option>
@@ -116,8 +122,42 @@
                 </td>
             </tr>
             {% endfor %}
+            {% if not books %}
+            <tr><td colspan="8" style="text-align: center; color: #999;">暂无图书数据</td></tr>
+            {% endif %}
         </tbody>
     </table>
+
+    <!-- 分页导航 -->
+    <div class="pagination">
+        {% if page > 1 %}
+        <a class="page-btn" href="?page=1&search={{ search }}&status={{ status_filter }}">首页</a>
+        <a class="page-btn" href="?page={{ page - 1 }}&search={{ search }}&status={{ status_filter }}">上一页</a>
+        {% else %}
+        <span class="page-btn" disabled>首页</span>
+        <span class="page-btn" disabled>上一页</span>
+        {% endif %}
+
+        {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+            <span class="page-btn active">{{ p }}</span>
+            {% elif p <= 3 or p > total_pages - 3 or (p >= page - 1 and p <= page + 1) %}
+            <a class="page-btn" href="?page={{ p }}&search={{ search }}&status={{ status_filter }}">{{ p }}</a>
+            {% elif p == 4 or p == total_pages - 3 %}
+            <span class="page-info">...</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if page < total_pages %}
+        <a class="page-btn" href="?page={{ page + 1 }}&search={{ search }}&status={{ status_filter }}">下一页</a>
+        <a class="page-btn" href="?page={{ total_pages }}&search={{ search }}&status={{ status_filter }}">末页</a>
+        {% else %}
+        <span class="page-btn" disabled>下一页</span>
+        <span class="page-btn" disabled>末页</span>
+        {% endif %}
+
+        <span class="page-info">共 {{ total_count }} 条，第 {{ page }}/{{ total_pages }} 页</span>
+    </div>
 </div>
 
 <div id="modal" class="modal">
@@ -151,7 +191,6 @@
         for (let cat of data.by_category) {
             html += `<div class="stat-card">📂 ${cat.name}: ${cat.count}</div>`;
         }
-        // 添加状态统计
         const statusMap = {};
         for (let s of data.by_status) {
             statusMap[s.status] = s.count;
@@ -161,12 +200,10 @@
         html += `<div class="stat-card">📗 已读: ${statusMap['已读'] || 0}</div>`;
         document.getElementById('stats').innerHTML = html;
 
-        // 更新总体进度条
         const progressBar = document.getElementById('overallProgressBar');
         const progress = data.overall_progress || 0;
         progressBar.style.width = progress + '%';
         progressBar.innerText = progress + '%';
-        // 设置进度条颜色
         progressBar.className = 'progress-bar-inner';
         if (progress >= 80) {
             progressBar.classList.add('progress-high');
@@ -236,7 +273,6 @@
         window.location.href = url;
     }
 
-    // 全选/取消全选
     function toggleSelectAll() {
         const selectAll = document.getElementById('selectAll');
         const checkboxes = document.querySelectorAll('.book-checkbox');
@@ -244,7 +280,6 @@
         updateBatchDeleteBtn();
     }
 
-    // 更新批量删除按钮显示状态
     function updateBatchDeleteBtn() {
         const checkedCount = document.querySelectorAll('.book-checkbox:checked').length;
         const batchBtn = document.getElementById('batchDeleteBtn');
@@ -256,7 +291,6 @@
         }
     }
 
-    // 批量删除
     async function batchDelete() {
         const checkedBoxes = document.querySelectorAll('.book-checkbox:checked');
         const ids = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
