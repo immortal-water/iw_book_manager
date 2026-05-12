@@ -1,10 +1,10 @@
-from flask import Flask, render_template, request, jsonify, Response
+import flask
 import sqlite3
 import os
 import csv
 import io
 
-app = Flask(__name__, template_folder=os.path.join('src', 'templates'))
+app = flask.Flask(__name__, template_folder=os.path.join('src', 'templates'))
 
 # 数据库路径
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -36,8 +36,8 @@ if not os.path.exists(DB_PATH):
 # 首页
 @app.route('/')
 def index():
-    search = request.args.get('search', '')
-    status_filter = request.args.get('status', '')
+    search = flask.request.args.get('search', '')
+    status_filter = flask.request.args.get('status', '')
     conn = get_db()
 
     # 构建动态查询条件
@@ -66,17 +66,17 @@ def index():
     categories = conn.execute("SELECT * FROM category").fetchall()
     conn.close()
 
-    return render_template('index.html', books=books, categories=categories, search=search, status_filter=status_filter)
+    return flask.render_template('index.html', books=books, categories=categories, search=search, status_filter=status_filter)
 
 # 添加图书
 @app.route('/book/add', methods=['POST'])
 def add_book():
-    title = request.form.get('title')
-    author = request.form.get('author')
-    isbn = request.form.get('isbn', '')
-    category_id = request.form.get('category_id')
-    location = request.form.get('location', '')
-    status = request.form.get('status', '未读')
+    title = flask.request.form.get('title')
+    author = flask.request.form.get('author')
+    isbn = flask.request.form.get('isbn', '')
+    category_id = flask.request.form.get('category_id')
+    location = flask.request.form.get('location', '')
+    status = flask.request.form.get('status', '未读')
 
     conn = get_db()
     conn.execute(
@@ -87,7 +87,7 @@ def add_book():
     conn.commit()
     conn.close()
 
-    return jsonify({"success": True})
+    return flask.jsonify({"success": True})
 
 # 删除单本图书
 @app.route('/book/delete/<int:book_id>')
@@ -96,22 +96,22 @@ def delete_book(book_id):
     conn.execute("DELETE FROM book WHERE id = ?", (book_id,))
     conn.commit()
     conn.close()
-    return jsonify({"success": True})
+    return flask.jsonify({"success": True})
 
 # 批量删除图书
 @app.route('/book/batch_delete', methods=['POST'])
 def batch_delete_books():
-    data = request.get_json()
+    data = flask.request.get_json()
     ids = data.get('ids', [])
     if not ids:
-        return jsonify({"success": False, "message": "未选择任何图书"})
+        return flask.jsonify({"success": False, "message": "未选择任何图书"})
 
     conn = get_db()
     placeholders = ','.join('?' for _ in ids)
     conn.execute(f"DELETE FROM book WHERE id IN ({placeholders})", ids)
     conn.commit()
     conn.close()
-    return jsonify({"success": True, "deleted": len(ids)})
+    return flask.jsonify({"success": True, "deleted": len(ids)})
 
 # 获取单本图书
 @app.route('/book/get/<int:book_id>')
@@ -119,17 +119,17 @@ def get_book(book_id):
     conn = get_db()
     book = conn.execute("SELECT * FROM book WHERE id = ?", (book_id,)).fetchone()
     conn.close()
-    return jsonify(dict(book))
+    return flask.jsonify(dict(book))
 
 # 更新图书
 @app.route('/book/update/<int:book_id>', methods=['POST'])
 def update_book(book_id):
-    title = request.form.get('title')
-    author = request.form.get('author')
-    isbn = request.form.get('isbn', '')
-    category_id = request.form.get('category_id')
-    location = request.form.get('location', '')
-    status = request.form.get('status', '未读')
+    title = flask.request.form.get('title')
+    author = flask.request.form.get('author')
+    isbn = flask.request.form.get('isbn', '')
+    category_id = flask.request.form.get('category_id')
+    location = flask.request.form.get('location', '')
+    status = flask.request.form.get('status', '未读')
 
     conn = get_db()
     conn.execute(
@@ -139,7 +139,7 @@ def update_book(book_id):
     )
     conn.commit()
     conn.close()
-    return jsonify({"success": True})
+    return flask.jsonify({"success": True})
 
 # 统计接口
 @app.route('/stats')
@@ -152,7 +152,7 @@ def stats():
         "GROUP BY category.id"
     ).fetchall()
     conn.close()
-    return jsonify({
+    return flask.jsonify({
         "total": total,
         "by_category": [dict(row) for row in by_category]
     })
@@ -160,8 +160,8 @@ def stats():
 # 导出CSV
 @app.route('/export/csv')
 def export_csv():
-    search = request.args.get('search', '')
-    status_filter = request.args.get('status', '')
+    search = flask.request.args.get('search', '')
+    status_filter = flask.request.args.get('status', '')
     conn = get_db()
 
     # 构建与首页一致的查询条件
@@ -211,7 +211,7 @@ def export_csv():
     csv_content = output.getvalue()
     output.close()
 
-    return Response(
+    return flask.Response(
         csv_content,
         mimetype='text/csv',
         headers={
