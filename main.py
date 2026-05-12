@@ -48,18 +48,13 @@ def get_book_tags(conn, book_id):
 # 首页
 @app.route('/')
 def index():
-<<<<<<< HEAD
     search = flask.request.args.get('search', '')
     status_filter = flask.request.args.get('status', '')
-=======
-    search = request.args.get('search', '')
-    status_filter = request.args.get('status', '')
-    tag_filter = request.args.get('tag', '')
-    page = request.args.get('page', 1, type=int)
+    tag_filter = flask.request.args.get('tag', '')
+    page = flask.request.args.get('page', 1, type=int)
     if page < 1:
         page = 1
 
->>>>>>> b520dc642d97753070f98726bc92694137e6c4c0
     conn = get_db()
 
     # 构建动态查询条件
@@ -129,10 +124,7 @@ def index():
     all_tags = conn.execute("SELECT * FROM tag ORDER BY id").fetchall()
     conn.close()
 
-<<<<<<< HEAD
-    return flask.render_template('index.html', books=books, categories=categories, search=search, status_filter=status_filter)
-=======
-    return render_template('index.html',
+    return flask.render_template('index.html',
                            books=books_with_progress,
                            categories=categories,
                            all_tags=all_tags,
@@ -143,27 +135,17 @@ def index():
                            page=page,
                            total_pages=total_pages,
                            total_count=total_count)
->>>>>>> b520dc642d97753070f98726bc92694137e6c4c0
 
 # 添加图书
 @app.route('/book/add', methods=['POST'])
 def add_book():
-<<<<<<< HEAD
     title = flask.request.form.get('title')
     author = flask.request.form.get('author')
     isbn = flask.request.form.get('isbn', '')
     category_id = flask.request.form.get('category_id')
     location = flask.request.form.get('location', '')
     status = flask.request.form.get('status', '未读')
-=======
-    title = request.form.get('title')
-    author = request.form.get('author')
-    isbn = request.form.get('isbn', '')
-    category_id = request.form.get('category_id')
-    location = request.form.get('location', '')
-    status = request.form.get('status', '未读')
-    tags = request.form.get('tags', '')
->>>>>>> b520dc642d97753070f98726bc92694137e6c4c0
+    tags = flask.request.form.get('tags', '')
 
     conn = get_db()
     cursor = conn.execute(
@@ -222,35 +204,22 @@ def get_book(book_id):
     book = conn.execute("SELECT * FROM book WHERE id = ?", (book_id,)).fetchone()
     if not book:
         conn.close()
-        return jsonify({})
+        return flask.jsonify({})
     book_dict = dict(book)
     book_dict['tags'] = get_book_tags(conn, book_id)
     conn.close()
-<<<<<<< HEAD
-    return flask.jsonify(dict(book))
-=======
-    return jsonify(book_dict)
->>>>>>> b520dc642d97753070f98726bc92694137e6c4c0
+    return flask.jsonify(book_dict)
 
 # 更新图书
 @app.route('/book/update/<int:book_id>', methods=['POST'])
 def update_book(book_id):
-<<<<<<< HEAD
     title = flask.request.form.get('title')
     author = flask.request.form.get('author')
     isbn = flask.request.form.get('isbn', '')
     category_id = flask.request.form.get('category_id')
     location = flask.request.form.get('location', '')
     status = flask.request.form.get('status', '未读')
-=======
-    title = request.form.get('title')
-    author = request.form.get('author')
-    isbn = request.form.get('isbn', '')
-    category_id = request.form.get('category_id')
-    location = request.form.get('location', '')
-    status = request.form.get('status', '未读')
-    tags = request.form.get('tags', '')
->>>>>>> b520dc642d97753070f98726bc92694137e6c4c0
+    tags = flask.request.form.get('tags', '')
 
     conn = get_db()
     conn.execute(
